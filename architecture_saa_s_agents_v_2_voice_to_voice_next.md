@@ -9,6 +9,7 @@
 Objectif : plateforme SaaS permettant de créer, configurer, tester et déployer des agents AI capables de mener des appels téléphoniques **voice-to-voice** (humain-like). L'architecture suit des principes modulaires, orientés événements, scalable et sécurisés.
 
 Composants principaux :
+
 - Frontend (Next.js) — console de configuration, dashboard realtime, simulateur d'appel.
 - Backend (FastAPI) — API REST + WebSocket, orchestrateur d'appels, gestion agents, intégration téléphonie.
 - Pipeline voix-AI — STT → LLM (dialogue) → TTS, en streaming pour latence minimale.
@@ -22,32 +23,33 @@ Composants principaux :
 
 ```mermaid
 flowchart LR
-  subgraph CLIENT
-    A[Console Next.js] -->|REST| B(Backend API - FastAPI)
-    A -->|WebSocket| WS[FastAPI WS]
-    A -->|Simulator calls| SIM[Call Simulator]
-  end
+subgraph CLIENT
+A[Console Next.js] -->|REST| B(Backend_API)
+A -->|WebSocket| WS(FastAPI_WS)
+A -->|Simulator_calls| SIM(Call_Simulator)
+end
 
-  subgraph BACKEND
-    B --> DB[(Postgres)]
-    B --> RQ[Task Queue (Redis/RQ or Celery)]
-    B --> TELE[Telephony Adapter]
-    B --> ORCH[Agent Orchestrator]
-    WS --> ORCH
-    ORCH --> STT[STT Service]
-    ORCH --> LLM[LLM Service]
-    ORCH --> TTS[TTS Service]
-    ORCH --> RQ
-  end
 
-  TELE -->|SIP/Twilio| PSTN[(PSTN / Carrier)]
-  STT -->|stream| LLM
-  LLM -->|text| TTS
-  TTS --> TELE
+subgraph BACKEND
+B --> DB[(Postgres)]
+B --> RQ[Task_Queue]
+B --> TELE[Telephony_Adapter]
+B --> ORCH[Agent_Orchestrator]
+WS --> ORCH
+ORCH --> STT[STT_Service]
+ORCH --> LLM[LLM_Service]
+ORCH --> TTS[TTS_Service]
+ORCH --> RQ
+end
 
-  DB ---|store logs| OL[Observability]
-  RQ -->|background tasks| WORKERS[Workers]
-  WORKERS --> OL
+
+TELE -->|SIP_or_Twilio| PSTN[(PSTN_Carrier)]
+STT --> LLM
+LLM --> TTS
+TTS --> TELE
+DB --- OL[Observability]
+RQ --> WORKERS[Workers]
+WORKERS --> OL
 ```
 
 ---
@@ -55,6 +57,7 @@ flowchart LR
 ## 3. Composants détaillés
 
 ### Frontend — Next.js
+
 - Pages / Features :
   - **Agents** : création, édition (personnalité, scripts, fallback rules, NLU intents, slot filling).
   - **Simulator** : initier un appel (microphone) ou playback pour tester flows.
@@ -65,6 +68,7 @@ flowchart LR
 - Stockage local : IndexedDB pour drafts de scripts.
 
 ### Backend — FastAPI
+
 - Entrées : REST API (agents, comptes, templates), Webhooks (telephony), WebSockets (UI realtime).
 - Modules :
   - **Auth** : JWT + refresh tokens, RBAC.
@@ -77,10 +81,12 @@ flowchart LR
 - DB : PostgreSQL (relations : users, accounts, agents, flows, calls, transcripts, events).
 
 ### Telephony Service
+
 - Options recommandées : Twilio (programmability & streaming), Vonage (voice API), ou SIP Trunk vers carrier.
 - Fonction : acheminer appel depuis PSTN -> plateforme (webhook / websocket), streamer audio en chunk -> Orchestrator.
 
 ### AI Pipeline
+
 - **STT (Streaming)** : Whisper (open-source) pour batch, Deepgram or AssemblyAI for low-latency streaming.
 - **LLM** : modèle conversationnel (inference endpoint). Approches :
   - Instruction-following LLM (Anthropic/Meta/OPENAI) + system prompt + retrieval from memory.
@@ -89,15 +95,18 @@ flowchart LR
 - **Latency pattern** : choose streaming providers that support chunk-by-chunk streaming to cut roundtrip.
 
 ### Orchestration & State Machine
+
 - Per-call state machine (ex: `INIT -> GREETING -> LISTEN -> PROCESS -> RESPOND -> END`).
 - Context & memory : short-term (per-call context) + long-term memory (customer profile, past calls) saved in DB or vector DB (Weaviate/Pinecone) for retrieval-augmented generation (RAG).
 - Fallbacks & Escalation : escalate to human live agent via SIP transfer or create a support ticket.
 
 ### Background tasks
+
 - Recording transcription, sentiment analysis, call summarization, analytics aggregation, model fine-tuning jobs.
 - Use Celery (RabbitMQ/Redis broker) or RQ for simplicity.
 
 ### Realtime
+
 - WebSockets (FastAPI + `websockets` or `starlette` WS) to push transcriptions, audio events, and call states to the frontend.
 - Optional: use a pub/sub layer (Redis Streams or Kafka) to fan-out events to multiple subscribers (UI, analytics, alerting).
 
@@ -143,7 +152,6 @@ sequenceDiagram
 - **events**: id, call_id, type, payload(json), created_at
 - **vector_store**: id, agent_id, document_id, embedding
 
-
 ---
 
 ## 6. API endpoints exemples
@@ -161,14 +169,17 @@ sequenceDiagram
 ## 7. Infrastructure & DevOps
 
 ### Conteneurisation
+
 - Docker images pour frontend, backend, workers, stt adapters.
 - Docker Compose pour dev ; Kubernetes (EKS/GKE/AKS) pour prod.
 
 ### CI/CD
+
 - GitHub Actions / GitLab CI : build, test, image push, helm deploy.
 - Canary / Blue-Green for low-risk deploys.
 
 ### Cloud & Services recommandés
+
 - **AWS** (exemple) :
   - EKS (containers) or ECS
   - RDS PostgreSQL
@@ -179,10 +190,12 @@ sequenceDiagram
 - **Alternative** : GCP (GKE, Cloud SQL) ou Azure (AKS, Azure SQL).
 
 ### Scalabilité
+
 - Autoscale pods by CPU / custom metric (active calls)
 - Separate pools for low-latency inference (LLM/TTS) vs background workers
 
 ### Observabilité & Monitoring
+
 - Metrics: Prometheus scraping app metrics, Grafana dashboards.
 - Logs: Loki or ELK (Elasticsearch+Kibana). Centralized traces with Jaeger or OpenTelemetry.
 - Error tracking: Sentry.
@@ -222,7 +235,7 @@ sequenceDiagram
 
 1. **PoC (4–6 semaines)**
    - Minimum: simulator, basic agent CRUD, Telephony webhook, streaming STT (third-party), simple LLM (OpenAI/Hosted), TTS playback.
-   - Metrics: end-to-end RTT (speech->reply) < 2s *per chunk* target.
+   - Metrics: end-to-end RTT (speech->reply) < 2s _per chunk_ target.
 2. **MVP (2–3 mois)**
    - Full agent flow, publish/unpublish, realtime dashboard, authentication, recordings, analytics basic.
 3. **Scale & production (3–6 mois)**
@@ -287,7 +300,4 @@ flowchart TD
 
 ---
 
-
-*Fin du document.*
-
-
+_Fin du document._
