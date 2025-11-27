@@ -251,24 +251,35 @@ sequenceDiagram
 
 ```mermaid
 flowchart TD
-  subgraph Public
-    ALB[ALB / API Gateway]
-  end
-  subgraph K8S
-    FE[Next.js (SSR) Ingress] --> Backend[FastAPI Ingress]
-    Backend --> Workers[Celery Workers]
-    Backend --> STTAdapters[STT Pods]
-    Backend --> TTSClients[TTS Pods]
-    Backend --> LLMProxies[LLM Proxy / Inference Pods]
-    DB[(RDS PostgreSQL)]
-    Redis[(Redis)]
-    S3[(S3)]
-  end
-  ALB --> FE
-  ALB --> Backend
-  Backend --> DB
-  Workers --> S3
-  LLMProxies --> GPUCluster[Optional GPU pool]
+    subgraph Public
+        ALB[ALB / API Gateway]
+    end
+
+    subgraph K8S
+        FE[Next.js SSR Ingress]
+        Backend[FastAPI Ingress]
+        Workers[Celery Workers]
+        STTAdapters[STT Pods]
+        TTSClients[TTS Pods]
+        LLMProxies[LLM Proxy / Inference Pods]
+        DB[(RDS PostgreSQL)]
+        Redis[(Redis)]
+        S3[(S3)]
+        GPUCluster[Optional GPU pool]
+
+        FE --> Backend
+        Backend --> Workers
+        Backend --> STTAdapters
+        Backend --> TTSClients
+        Backend --> LLMProxies
+        Backend --> DB
+        Workers --> S3
+        LLMProxies --> GPUCluster
+    end
+
+    ALB --> FE
+    ALB --> Backend
+    Backend --> Redis
 ```
 
 ---
