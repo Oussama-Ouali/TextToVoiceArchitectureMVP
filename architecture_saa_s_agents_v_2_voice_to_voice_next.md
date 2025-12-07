@@ -1,62 +1,135 @@
-# Architecture technique — SaaS d'agents voice-to-voice (Next.js + FastAPI)
+# Architecture technique — SaaS d'agents voice-to-voice (react + FastAPI)
 
 > Document technique complet — diagrammes, flux en temps réel, composants, API, infra et roadmap d'implémentation.
 
 ---
 
-## 1. Vue d'ensemble (résumé)
-
-Objectif : plateforme SaaS permettant de créer, configurer, tester et déployer des agents AI capables de mener des appels téléphoniques **voice-to-voice** (humain-like). L'architecture suit des principes modulaires, orientés événements, scalable et sécurisés.
-
-Composants principaux :
-
-- Frontend (Next.js) — console de configuration, dashboard realtime, simulateur d'appel.
-- Backend (FastAPI) — API REST + WebSocket, orchestrateur d'appels, gestion agents, intégration téléphonie.
-- Pipeline voix-AI — STT → LLM (dialogue) → TTS, en streaming pour latence minimale.
-- Services téléphoniques (Twilio / Vonage / SIP Trunk) pour terminer les appels.
-- Infrastructure : Docker, Kubernetes (EKS/GKE/AKS), Load balancers, CI/CD.
-- Observabilité : Prometheus, Grafana, Loki (logs), Sentry (erreurs).
+## Objectif
+Cette plateforme SaaS permet de créer, configurer, tester et déployer des **agents AI capables de mener des appels téléphoniques voice-to-voice** (interaction humaine-like).  
+L'architecture est conçue pour être **modulaire, orientée événements, scalable et sécurisée**, avec un focus sur la **latence minimale** et l'**observabilité**.
 
 ---
 
-## 2. Diagramme d'architecture (haut niveau)
+## 1.Composants principaux
+
+### Frontend (React)
+- Console de configuration des agents.
+- Dashboard en temps réel pour le suivi des appels et performances.
+- Simulateur d'appel pour tester les agents avant déploiement.
+
+### Backend (FastAPI)
+- **API REST** pour gérer les agents, les scripts et la configuration.
+- **WebSocket** pour le streaming temps réel des interactions vocales.
+- Orchestrateur d'appels et gestion de sessions.
+- Intégration avec les services téléphoniques (Twilio, Vonage, SIP Trunk).
+
+> ⚡ FastAPI est un **framework Python moderne et performant**, orienté vers la création d'API REST et WebSocket asynchrones, idéal pour gérer des flux temps réel et scalable.
+
+### Pipeline Voix-AI
+- **STT (Speech-to-Text)** : conversion de la voix en texte.
+- **LLM (Dialogue AI)** : génération de réponses et analyse du dialogue.  
+  *L’agent répond uniquement aux questions liées au sujet X, et ignore ou redirige les questions hors-sujet.*
+- **TTS (Text-to-Speech)** : génération vocale humaine-like, en streaming pour une latence minimale.
+- Les appels peuvent être **enregistrés** pour analyse, compliance et amélioration des agents.
+- **Vector DB** : stockage du contexte et mémoire des conversations pour améliorer la continuité du dialogue avec un LLM complexe.  
+  *Utilisée pour le RAG (Retrieval-Augmented Generation) : le LLM récupère des informations pertinentes du passé pour enrichir la conversation en temps réel.*
+- **Analyseur d'attitude / sentiment** : détection de l'état émotionnel de l'interlocuteur en temps réel.
+
+
+### Services téléphoniques
+- Twilio / Vonage / SIP Trunk pour **terminer les appels vers le réseau téléphonique**.
+- Support des flux media en streaming pour STT/TTS.
+
+### Infrastructure
+- Conteneurisation avec **Docker**.
+- Orchestration et scalabilité via **Kubernetes (EKS/GKE/AKS)**.
+- Load balancers pour gérer la charge.
+- **CI/CD** pour déploiement continu et automatisé.
+
+### Observabilité et sécurité
+- **Prometheus & Grafana** : métriques et monitoring.
+- **Loki** : centralisation des logs.
+- **Sentry** : suivi des erreurs et exceptions.
+- **OpenTelemetry / Jaeger** (optionnel) : traçage distribué pour le pipeline temps réel.
+- Sécurisation des données et appels via chiffrement, gestion des secrets et IAM.
+- **Gestion du consentement et de la compliance** pour l'enregistrement et la conservation des appels.
+
+---
+
+## 2.Flux simplifié d’un appel
+
+```mermaid
+sequenceDiagram
+    autonumber
+    participant Utilisateur as Interlocuteur
+    participant Twilio as Service Téléphonique
+    participant Backend as FastAPI Backend
+    participant STT as STT (Speech-to-Text)
+    participant LLM as LLM / Dialogue AI
+    participant VectorDB as Vector DB (Contexte & Mémoire)
+    participant Sentiment as Analyseur d'attitude / Sentiment
+    participant TTS as TTS (Text-to-Speech)
+
+    Note over Utilisateur,Twilio: Début de l'appel
+    Utilisateur->>Twilio: Parle à l'agent
+    Twilio->>Backend: Stream audio temps réel
+    Backend->>STT: Conversion voix → texte
+    STT-->>Backend: Texte transcrit
+    Backend->>VectorDB: Récupérer contexte conversation
+    Backend->>LLM: Génération de réponse (texte) avec contexte
+    LLM-->>Backend: Réponse texte
+    Backend->>Sentiment: Analyse de l'attitude / émotion de l'interlocuteur
+    Sentiment-->>Backend: Score émotion / état
+    Backend->>TTS: Conversion texte → voix
+    TTS-->>Backend: Stream audio généré
+    Backend->>Twilio: Retour audio à l'interlocuteur
+    Twilio-->>Utilisateur: Agent parle
+    Backend->>Backend: Enregistrement de l'appel pour compliance et analyse
+
+```
+---
+
+## 3. Diagramme d'architecture (haut niveau)
 
 ```mermaid
 flowchart LR
 subgraph CLIENT
-A[Console Next.js] -->|REST| B(Backend_API)
+A[Console React] -->|REST| B(API FastAPI)
 A -->|WebSocket| WS(FastAPI_WS)
-A -->|Simulator_calls| SIM(Call_Simulator)
+A -->|Simulation d'appels| SIM(Simulateur d'appels)
 end
 
-
 subgraph BACKEND
-B --> DB[(Postgres)]
-B --> RQ[Task_Queue]
-B --> TELE[Telephony_Adapter]
-B --> ORCH[Agent_Orchestrator]
+B --> DB[(PostgreSQL)]
+B --> RQ[Queue de tâches]
+B --> TELE[Adaptateur Téléphonie]
+B --> ORCH[Orchestrateur d'agents]
 WS --> ORCH
-ORCH --> STT[STT_Service]
-ORCH --> LLM[LLM_Service]
-ORCH --> TTS[TTS_Service]
+ORCH --> STT[Service STT]
+ORCH --> LLM[Service LLM]
+ORCH --> TTS[Service TTS]
+ORCH --> SENT[Analyseur d'attitude / sentiment]
+ORCH --> VectorDB[Vector DB (contexte)]
 ORCH --> RQ
 end
 
-
-TELE -->|SIP_or_Twilio| PSTN[(PSTN_Carrier)]
+TELE -->|SIP / Twilio| PSTN[(PSTN / Fournisseur Télécom)]
 STT --> LLM
+LLM --> VectorDB
 LLM --> TTS
 TTS --> TELE
-DB --- OL[Observability]
+SENT --> ORCH
+DB --- OL[Observabilité (Prometheus / Grafana / Loki / Sentry)]
 RQ --> WORKERS[Workers]
 WORKERS --> OL
+
 ```
 
 ---
 
-## 3. Composants détaillés
+## 4. Composants détaillés
 
-### Frontend — Next.js
+### Frontend — react
 
 - Pages / Features :
   - **Agents** : création, édition (personnalité, scripts, fallback rules, NLU intents, slot filling).
@@ -109,36 +182,6 @@ WORKERS --> OL
 
 - WebSockets (FastAPI + `websockets` or `starlette` WS) to push transcriptions, audio events, and call states to the frontend.
 - Optional: use a pub/sub layer (Redis Streams or Kafka) to fan-out events to multiple subscribers (UI, analytics, alerting).
-
----
-
-## 4. Séquence d'appel (streaming) — Diagramme
-
-```mermaid
-sequenceDiagram
-  participant PSTN
-  participant Carrier
-  participant Telephony
-  participant Orchestrator
-  participant STT
-  participant LLM
-  participant TTS
-  participant ClientUI
-
-  PSTN->>Carrier: Call to platform
-  Carrier->>Telephony: Webhook / SIP INVITE
-  Telephony->>Orchestrator: New call event
-  Orchestrator->>ClientUI: WS event (call started)
-  Telephony->>STT: stream audio chunks
-  STT->>Orchestrator: partial transcripts
-  Orchestrator->>LLM: prompt + partial transcript + context
-  LLM->>Orchestrator: generated text
-  Orchestrator->>TTS: text -> audio
-  TTS->>Telephony: audio chunks
-  Telephony->>PSTN: play audio
-  Orchestrator->>ClientUI: realtime transcripts & logs
-```
-
 ---
 
 ## 5. Modèle de données (extraits)
@@ -256,7 +299,7 @@ flowchart TD
     end
 
     subgraph K8S
-        FE[Next.js SSR Ingress]
+        FE[react SSR Ingress]
         Backend[FastAPI Ingress]
         Workers[Celery Workers]
         STTAdapters[STT Pods]
