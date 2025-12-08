@@ -94,13 +94,13 @@ sequenceDiagram
 ```mermaid
 flowchart LR
 subgraph CLIENT
-A[Console React] -->|REST| B(API FastAPI)
-A -->|WebSocket| WS(FastAPI_WS)
-A -->|Simulation d'appels| SIM(Simulateur d'appels)
+A[Console React] -->|REST| B[API FastAPI]
+A -->|WebSocket| WS[FastAPI WS]
+A -->|Simulation d'appels| SIM[Simulateur d'appels]
 end
 
 subgraph BACKEND
-B --> DB[(PostgreSQL)]
+B --> DB[PostgreSQL]
 B --> RQ[Queue de tâches]
 B --> TELE[Adaptateur Téléphonie]
 B --> ORCH[Orchestrateur d'agents]
@@ -108,18 +108,18 @@ WS --> ORCH
 ORCH --> STT[Service STT]
 ORCH --> LLM[Service LLM]
 ORCH --> TTS[Service TTS]
-ORCH --> SENT[Analyseur d'attitude / sentiment]
-ORCH --> VectorDB[Vector DB (contexte)]
+ORCH --> SENT[Analyseur sentiment]
+ORCH --> VectorDB[Vector DB contexte]
 ORCH --> RQ
 end
 
-TELE -->|SIP / Twilio| PSTN[(PSTN / Fournisseur Télécom)]
+TELE -->|SIP-Twilio| PSTN[PSTN Fournisseur Télécom]
 STT --> LLM
 LLM --> VectorDB
 LLM --> TTS
 TTS --> TELE
 SENT --> ORCH
-DB --- OL[Observabilité (Prometheus / Grafana / Loki / Sentry)]
+DB --- OL[Observabilité Prometheus Grafana Loki Sentry]
 RQ --> WORKERS[Workers]
 WORKERS --> OL
 
